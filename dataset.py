@@ -25,11 +25,13 @@ def parse_tfrecord(example_proto):
     x_train = tf.image.resize(x_train, (416, 416))
 
     labels = tf.cast(tf.sparse.to_dense(example_proto['image/object/class/label']), tf.float32)
+
     y_train = tf.stack([tf.sparse.to_dense(example_proto['image/object/bbox/xmin']),
                         tf.sparse.to_dense(example_proto['image/object/bbox/ymin']),
                         tf.sparse.to_dense(example_proto['image/object/bbox/xmax']),
                         tf.sparse.to_dense(example_proto['image/object/bbox/ymax']),
-                        labels], axis=1)
+                        labels]
+                        , axis=1)
 
     paddings = [[0, 100 - tf.shape(y_train)[0]], [0, 0]]
     y_train = tf.pad(y_train, paddings)
@@ -39,6 +41,7 @@ def parse_tfrecord(example_proto):
     }
 
     return train
+
 
 def createDataset(tfrecord_path):
     raw_dataset = tf.data.TFRecordDataset(tfrecord_path)

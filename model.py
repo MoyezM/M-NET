@@ -17,6 +17,30 @@ iou_threshold = 0.5
 
 score_threshold = 0.5
 
+def broadcast_iou(box_1, box_2):
+    # box_1: (..., (x1, y1, x2, y2))
+    # box_2: (N, (x1, y1, x2, y2))
+
+    # broadcast boxes
+    box_1 = tf.expand_dims(box_1, -2)
+    box_2 = tf.expand_dims(box_2, 0)
+    # new_shape: (..., N, (x1, y1, x2, y2))
+    new_shape = tf.broadcast_dynamic_shape(tf.shape(box_1), tf.shape(box_2))
+    box_1 = tf.broadcast_to(box_1, new_shape)
+    box_2 = tf.broadcast_to(box_2, new_shape)
+
+    int_w = tf.maximum(tf.minimum(box_1[..., 2], box_2[..., 2]) -
+                       tf.maximum(box_1[..., 0], box_2[..., 0]), 0)
+    int_h = tf.maximum(tf.minimum(box_1[..., 3], box_2[..., 3]) -
+                       tf.maximum(box_1[..., 1], box_2[..., 1]), 0)
+    int_area = int_w * int_h
+    box_1_area = (box_1[..., 2] - box_1[..., 0]) * \
+        (box_1[..., 3] - box_1[..., 1])
+    box_2_area = (box_2[..., 2] - box_2[..., 0]) * \
+        (box_2[..., 3] - box_2[..., 1])
+    return int_area / (box_1_area + box_2_area - int_area)
+
+
 # Same conv layer as Darknet
 def Conv(x, filters, size, strides=1, batch_norm=True):
     if strides == 1:
@@ -100,7 +124,7 @@ def output(filters, anchors, classes, name=None):
 def boxes(pred, anchors, classes):
     grid_size = tf.shape(pred)[1]
     
-    box_xy, box_wh, objectness, class_probs = tf.split(pred, (2, 2, 1, classes))
+    box_xy, box_wh, objectness, class_probs = tf.split(pred, (2, 2, 1, classes), axis=-1)
     
     box_xy = tf.sigmoid(box_xy)
     objectness = tf.sigmoid(objectness)
@@ -111,7 +135,7 @@ def boxes(pred, anchors, classes):
     grid = tf.meshgrid(tf.range(grid_size), tf.range(grid_size))
     grid = tf.expand_dims(tf.stack(grid, axis=-1), axis=2)
     
-    box_xy = (box_xy + tf.cast(grid, tf.float32)) / tf.cast(grid_sizem, tf.float32)
+    box_xy = (box_xy + tf.cast(grid, tf.float32)) / tf.cast(grid_size, tf.float32)
     box_wh = tf.exp(box_wh) * anchors
     
     box_x1y1 = box_xy - box_wh / 2

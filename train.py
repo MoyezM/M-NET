@@ -10,18 +10,18 @@ from tensorflow.keras.callbacks import (
 import model as mnet
 import dataset as dataset
 
-train_path = "D:\\Coco\\coco_train"
-val_path = "D:\\Coco\\coco_val"
+train_path = "D:\\Coco\\coco_train.tfrecord"
+val_path = "D:\\Coco\\coco_val.tfrecord"
 
-def main(_argv):
-    model = mnet.MNET_complete(416, training=true)
+def main():
+    model = mnet.MNET_complete(416, training=True)
     anchors = mnet.mnet_anchors
     anchor_masks = mnet.mnet_anchor_masks
     
 #     Get the training set
     train_dataset = dataset.createDataset(train_path)
     train_dataset = train_dataset.shuffle(buffer_size=1024)
-    train_dataset = train_dataset.batch(FLAGS.batch_size)
+    train_dataset = train_dataset.batch(8)
     
     train_dataset = train_dataset.map(lambda x, y: (
         dataset.transform_images(x, 416),
@@ -31,9 +31,9 @@ def main(_argv):
         buffer_size=tf.data.experimental.AUTOTUNE)
     
     
-    val_path = dataset.createDataset(val_path)
+    val_dataset = dataset.createDataset(val_path)
     
-    val_dataset = val_dataset.batch(FLAGS.batch_size)
+    val_dataset = val_dataset.batch(8)
     val_dataset = val_dataset.map(lambda x, y: (
         dataset.transform_images(x, 416),
         dataset.transform_targets(y, anchors, anchor_masks, 80)))
@@ -41,25 +41,55 @@ def main(_argv):
     optimizer = tf.keras.optimizers.Adam(lr = 1e-3)
     loss = [mnet.Loss(anchors[mask], classes = 80) for mask in anchor_masks]
     
-    model.compile(optimizer=optimizer, loss=loss, run_eagerly = False)
+    avg_loss = tf.keras.metrics.Mean('loss', dtype=tf.float32)
+    avg_val_loss = tf.keras.metrics.Mean('val_loss', dtype=tf.float32)
 
-        callbacks = [
-            ReduceLROnPlateau(verbose=1),
-            EarlyStopping(patience=3, verbose=1),
-            ModelCheckpoint('checkpoints/mnet_train_{epoch}.tf',
-                            verbose=1, save_weights_only=True),
-            TensorBoard(log_dir='logs')
-        ]
+    for epoch in range(1, 2 + 1):
+        for batch, (images, labels) in enumerate(train_dataset):
+            with tf.GradientTape() as tape:
+                outputs = model(images, training=True)
+                regularization_loss = tf.reduce_sum(model.losses)
+                pred_loss = []
+                for output, label, loss_fn in zip(outputs, labels, loss):
+                    pred_loss.append(loss_fn(label, output))
+                total_loss = tf.reduce_sum(pred_loss) + regularization_loss
 
-        history = model.fit(train_dataset,
-                            epochs=FLAGS.epochs,
-                            callbacks=callbacks,
-                            validation_data=val_dataset)
+            grads = tape.gradient(total_loss, model.trainable_variables)
+            optimizer.apply_gradients(
+                zip(grads, model.trainable_variables))
 
-if __name__ == '__main__':
-    try:
-        app.run(main)
-    except SystemExit:
-        pass
+            logging.info("{}_train_{}, {}, {}".format(
+                epoch, batch, total_loss.numpy(),
+                list(map(lambda x: np.sum(x.numpy()), pred_loss))))
+            avg_loss.update_state(total_loss)
+
+        for batch, (images, labels) in enumerate(val_dataset):
+            outputs = model(images)
+            regularization_loss = tf.reduce_sum(model.losses)
+            pred_loss = []
+            for output, label, loss_fn in zip(outputs, labels, loss):
+                pred_loss.append(loss_fn(label, output))
+            total_loss = tf.reduce_sum(pred_loss) + regularization_loss
+
+            logging.info("{}_val_{}, {}, {}".format(
+                epoch, batch, total_loss.numpy(),
+                list(map(lambda x: np.sum(x.numpy()), pred_loss))))
+            avg_val_loss.update_state(total_loss)
+
+        logging.info("{}, train: {}, val: {}".format(
+            epoch,
+            avg_loss.result().numpy(),
+            avg_val_loss.result().numpy()))
+
+        avg_loss.reset_states()
+        avg_val_loss.reset_states()
+        model.save_weights(
+            'checkpoints/yolov3_train_{}.tf'.format(epoch))
+
+
+
+
+main()
+
 
 

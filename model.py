@@ -13,6 +13,10 @@ yolo_anchors = np.array([(10, 13), (16, 30), (33, 23), (30, 61), (62, 45),
 
 yolo_anchor_masks = np.array([[6, 7, 8], [3, 4, 5], [0, 1, 2]])
 
+iou_threshold = 0.5
+
+score_threshold = 0.5
+
 # Same conv layer as Darknet
 def Conv(x, filters, size, strides=1, batch_norm=True):
     if strides == 1:
@@ -59,10 +63,6 @@ def MNET(name=None):
     return tf.keras.Model(inputs, (x_1, x_2, x), name=name)
 
 
-
-
-
-
 def MNETConv(filters, name=None):
     def mnet_conv(x_in):
         if isinstance(x_in, tuple):
@@ -86,7 +86,7 @@ def MNETConv(filters, name=None):
     return mnet_conv
 
 # Createst the (size/32, size/32, anchors_size, classes_5) encoding (stolen from yolov3)
-def MNETOutput(filters, anchors, classes, name=None):
+def output(filters, anchors, classes, name=None):
 #   Final part the of the yolo feature detector
     def mnet_output(x_in):
         x = inputs = Input(x_in.shape[1:])
@@ -96,5 +96,54 @@ def MNETOutput(filters, anchors, classes, name=None):
         return tf.keras.Model(inputs, x, name=name)(x_in)
     return mnet_output
 
+# Idea taken from the YoloV3 paper with sigmoids during BB 
+def boxes(pred, anchors, classes):
+    grid_size = tf.shape(pred)[1]
+    
+    box_xy, box_wh, objectness, class_probs = tf.split(pred, (2, 2, 1, classes))
+    
+    box_xy = tf.sigmoid(box_xy)
+    objectness = tf.sigmoid(objectness)
+    class_probs = tf.sigmoid(class_probs)
+    pred_box = tf.concat((box_xy, box_wh), axis=-1)
+    
+#   Creates the grid of size (grid_size x grid_size)
+    grid = tf.meshgrid(tf.range(grid_size), tf.range(grid_size))
+    grid = tf.expand_dims(tf.stack(grid, axis=-1), axis=2)
+    
+    box_xy = (box_xy + tf.cast(grid, tf.float32)) / tf.cast(grid_sizem, tf.float32)
+    box_wh = tf.exp(box_wh) * anchors
+    
+    box_x1y1 = box_xy - box_wh / 2
+    box_x2y2 = box_xy + box_wh / 2
+    bbox = tf.concat([box_x1y1, box_x2y2], axis=-1)
 
+    return bbox, objectness, class_probs, pred_box
+    
+    
+
+def nms(outputs, anchors, masks, classes):
+#   Boxes, Conf, Type
+    b, c, t = [], [], []
+    
+    for o in outputs:
+        b.append(tf.reshape(o[0], (tf.shape(o[0])[0], -1, tf.shape(o[0])[-1])))
+        c.append(tf.reshape(o[1], (tf.shape(o[1])[0], -1, tf.shape(o[1])[-1])))
+        t.append(tf.reshape(o[2], (tf.shape(o[2])[0], -1, tf.shape(o[2])[-1])))
+        
+    bbox = tf.concat(b, axis=1)
+    confidence = tf.concat(c, axis=1)
+    class_probs = tf.concat(t, axis=1)
+    
+    scores = confidence * class_probs
+    
+    boxes, scores, classes, valid_detections = tf.image.combined_non_max_suppression(
+        boxes=tf.reshape(bbox, (tf.shape(bbox)[0], -1, 1, 4)),
+        scores=tf.reshape(scores, (tf.shape(scores)[0], -1, tf.shape(scores)[-1])),
+        max_output_size_per_class=100,
+        max_total_size=100,
+        iou_threshold=iou_threshold,
+        score_threshold=score_threshold
+    )
+    
 

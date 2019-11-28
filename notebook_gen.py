@@ -1,7 +1,7 @@
 import os
 import json
 
-path = "C:\\Users\\Moyez\\Desktop\\Code\\Python\\Mnet"
+path = "C:\\Users\\Moyez\\Desktop\\Code\\Python\\M-NET"
 
 files  = []
 

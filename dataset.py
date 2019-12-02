@@ -96,7 +96,7 @@ def parse_tfrecord(example_proto):
     x_train = tf.image.decode_jpeg(example_proto['image/encoded'], channels=3)
     x_train = tf.image.resize(x_train, (416, 416))
 
-    labels = tf.cast(tf.sparse.to_dense(example_proto['image/object/class/label']), tf.float32)
+    labels = tf.cast(tf.sparse.to_dense(example_proto['image/object/class/label'], default_value=0), tf.float32)
 
     y_train = tf.stack([tf.sparse.to_dense(example_proto['image/object/bbox/xmin']),
                         tf.sparse.to_dense(example_proto['image/object/bbox/ymin']),
@@ -114,7 +114,6 @@ def parse_tfrecord(example_proto):
 def createDataset(tfrecord_path):
     raw_dataset = tf.data.TFRecordDataset(tfrecord_path)
     parsed_dataset = raw_dataset.map(_parse_image_function)
-#     x, y = parsed_dataset.map(parse_tfrecord)
 
     return parsed_dataset.map(lambda x: parse_tfrecord(x))
 

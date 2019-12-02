@@ -31,14 +31,14 @@ def main():
         buffer_size=tf.data.experimental.AUTOTUNE)
     
     
-    val_dataset = dataset.createDataset(val_path)
+    # val_dataset = dataset.load_tfrecord_dataset(val_path)
     
-    val_dataset = val_dataset.batch(8)
-    val_dataset = val_dataset.map(lambda x, y: (
-        dataset.transform_images(x, 416),
-        dataset.transform_targets(y, anchors, anchor_masks, 80)))
+    # val_dataset = val_dataset.batch(1)
+    # val_dataset = val_dataset.map(lambda x, y: (
+    #     dataset.transform_images(x, 416),
+    #     dataset.transform_targets(y, anchors, anchor_masks, 80)))
 
-    optimizer = tf.keras.optimizers.Adam(lr = 1e-3)
+    optimizer = tf.keras.optimizers.Adam(lr = 1e-5)
     loss = [mnet.Loss(anchors[mask], classes = 80) for mask in anchor_masks]
     
     avg_loss = tf.keras.metrics.Mean('loss', dtype=tf.float32)
@@ -58,31 +58,30 @@ def main():
             optimizer.apply_gradients(
                 zip(grads, model.trainable_variables))
 
-            logging.info("{}_train_{}, {}, {}".format(
+            print("{}_train_{}, {}, {}".format(
                 epoch, batch, total_loss.numpy(),
                 list(map(lambda x: np.sum(x.numpy()), pred_loss))))
             avg_loss.update_state(total_loss)
 
-        for batch, (images, labels) in enumerate(val_dataset):
-            outputs = model(images)
-            regularization_loss = tf.reduce_sum(model.losses)
-            pred_loss = []
-            for output, label, loss_fn in zip(outputs, labels, loss):
-                pred_loss.append(loss_fn(label, output))
-            total_loss = tf.reduce_sum(pred_loss) + regularization_loss
+        # for batch, (images, labels) in enumerate(val_dataset):
+        #     outputs = model(images)
+        #     regularization_loss = tf.reduce_sum(model.losses)
+        #     pred_loss = []
+        #     for output, label, loss_fn in zip(outputs, labels, loss):
+        #         pred_loss.append(loss_fn(label, output))
+        #     total_loss = tf.reduce_sum(pred_loss) + regularization_loss
 
-            logging.info("{}_val_{}, {}, {}".format(
-                epoch, batch, total_loss.numpy(),
-                list(map(lambda x: np.sum(x.numpy()), pred_loss))))
-            avg_val_loss.update_state(total_loss)
+        #     print.info("{}_val_{}, {}, {}".format(
+        #         epoch, batch, total_loss.numpy(),
+        #         list(map(lambda x: np.sum(x.numpy()), pred_loss))))
+        #     avg_val_loss.update_state(total_loss)
 
-        logging.info("{}, train: {}, val: {}".format(
+        print.info("{}, train: {}".format(
             epoch,
-            avg_loss.result().numpy(),
-            avg_val_loss.result().numpy()))
+            avg_loss.result().numpy()))
 
         avg_loss.reset_states()
-        avg_val_loss.reset_states()
+        # avg_val_loss.reset_states()
         model.save_weights(
             'checkpoints/yolov3_train_{}.tf'.format(epoch))
 

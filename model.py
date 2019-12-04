@@ -5,7 +5,7 @@ from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Conv2D, ZeroPadding2D, Add, Input, LeakyReLU, \
                                     UpSampling2D, Concatenate, Lambda
 from tensorflow.keras.regularizers import l2
-from tensorflow.keras.losses import binary_crossentropy, sparse_categorical_crossentropy, mean_squared_error
+from tensorflow.keras.losses import binary_crossentropy, sparse_categorical_crossentropy, mean_squared_error, categorical_crossentropy
 from batch_norm import BatchNormalization
 
 mnet_anchors = np.array([(10, 13), (16, 30), (33, 23), (30, 61), (62, 45),
@@ -239,14 +239,18 @@ def Loss(anchors, classes=80, ignore_thresh=0.5):
         obj_loss = binary_crossentropy(true_obj, pred_obj)
         obj_loss = obj_mask * obj_loss + (1 - obj_mask) * ignore_mask * obj_loss
         # TODO: use binary_crossentropy instead
-        
-        class_loss = obj_mask *  mean_squared_error(true_class_idx, pred_class)
+
+        if (tf.keras.backend.min_value(true_class_idx) < 0):
+            class_loss = 0
+        else:   
+            class_loss = obj_mask *  sparse_categorical_crossentropy(true_class_idx, pred_class)
+            class_loss = tf.reduce_sum(class_loss, axis=(1, 2, 3))
+
 
         # 6. sum over (batch, gridx, gridy, anchors) => (batch, 1)
         xy_loss = tf.reduce_sum(xy_loss, axis=(1, 2, 3))
         wh_loss = tf.reduce_sum(wh_loss, axis=(1, 2, 3))
         obj_loss = tf.reduce_sum(obj_loss, axis=(1, 2, 3))
-        class_loss = tf.reduce_sum(class_loss, axis=(1, 2, 3))
 
         return xy_loss + wh_loss + obj_loss + class_loss
     return loss

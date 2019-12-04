@@ -1,44 +1,5 @@
 import tensorflow as tf
-import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.image as mpimg
 
-image_feature_description  = {
-    'image/width': tf.io.FixedLenFeature([], tf.int64),
-    'image/height': tf.io.FixedLenFeature([], tf.int64),
-    'image/encoded': tf.io.FixedLenFeature([], tf.string),
-    'image/object/bbox/xmin': tf.io.VarLenFeature(tf.float32),
-    'image/object/bbox/ymin': tf.io.VarLenFeature(tf.float32),
-    'image/object/bbox/xmax': tf.io.VarLenFeature(tf.float32),
-    'image/object/bbox/ymax': tf.io.VarLenFeature(tf.float32),
-    'image/object/class/label': tf.io.VarLenFeature(tf.int64),
-}
-
-def transform_targets(y_train, anchors, anchor_masks, classes):
-    y_outs = []
-    grid_size = 13
-
-    # calculate anchor index for true boxes
-    anchors = tf.cast(anchors, tf.float32)
-    anchor_area = anchors[..., 0] * anchors[..., 1]
-    box_wh = y_train[..., 2:4] - y_train[..., 0:2]
-    box_wh = tf.tile(tf.expand_dims(box_wh, -2),
-                     (1, 1, tf.shape(anchors)[0], 1))
-    box_area = box_wh[..., 0] * box_wh[..., 1]
-    intersection = tf.minimum(box_wh[..., 0], anchors[..., 0]) * \
-        tf.minimum(box_wh[..., 1], anchors[..., 1])
-    iou = intersection / (box_area + anchor_area - intersection)
-    anchor_idx = tf.cast(tf.argmax(iou, axis=-1), tf.float32)
-    anchor_idx = tf.expand_dims(anchor_idx, axis=-1)
-
-    y_train = tf.concat([y_train, anchor_idx], axis=-1)
-
-    for anchor_idxs in anchor_masks:
-        y_outs.append(transform_targets_for_output(
-            y_train, grid_size, anchor_idxs, classes))
-        grid_size *= 2
-
-    return tuple(y_outs)
 
 @tf.function
 def transform_targets_for_output(y_true, grid_size, anchor_idxs, classes):
@@ -81,29 +42,74 @@ def transform_targets_for_output(y_true, grid_size, anchor_idxs, classes):
     return tf.tensor_scatter_nd_update(
         y_true_out, indexes.stack(), updates.stack())
 
-def print_img(img):
-    imgplot = plt.imshow(img.numpy().astype(dtype='uint8'))
+
+def transform_targets(y_train, anchors, anchor_masks, classes):
+    y_outs = []
+    grid_size = 13
+
+    # calculate anchor index for true boxes
+    anchors = tf.cast(anchors, tf.float32)
+    anchor_area = anchors[..., 0] * anchors[..., 1]
+    box_wh = y_train[..., 2:4] - y_train[..., 0:2]
+    box_wh = tf.tile(tf.expand_dims(box_wh, -2),
+                     (1, 1, tf.shape(anchors)[0], 1))
+    box_area = box_wh[..., 0] * box_wh[..., 1]
+    intersection = tf.minimum(box_wh[..., 0], anchors[..., 0]) * \
+        tf.minimum(box_wh[..., 1], anchors[..., 1])
+    iou = intersection / (box_area + anchor_area - intersection)
+    anchor_idx = tf.cast(tf.argmax(iou, axis=-1), tf.float32)
+    anchor_idx = tf.expand_dims(anchor_idx, axis=-1)
+
+    y_train = tf.concat([y_train, anchor_idx], axis=-1)
+
+    for anchor_idxs in anchor_masks:
+        y_outs.append(transform_targets_for_output(
+            y_train, grid_size, anchor_idxs, classes))
+        grid_size *= 2
+
+    return tuple(y_outs)
+
 
 def transform_images(x_train, size):
     x_train = tf.image.resize(x_train, (size, size))
     x_train = x_train / 255
     return x_train
 
-def _parse_image_function(example_proto):
-    return tf.io.parse_single_example(example_proto, image_feature_description)
 
-def parse_tfrecord(example_proto):
-    x_train = tf.image.decode_jpeg(example_proto['image/encoded'], channels=3)
+# https://github.com/tensorflow/models/blob/master/research/object_detection/g3doc/using_your_own_dataset.md#conversion-script-outline-conversion-script-outline
+IMAGE_FEATURE_MAP = {
+    'image/width': tf.io.FixedLenFeature([], tf.int64),
+    'image/height': tf.io.FixedLenFeature([], tf.int64),
+    'image/filename': tf.io.FixedLenFeature([], tf.string),
+    'image/source_id': tf.io.FixedLenFeature([], tf.string),
+    'image/key/sha256': tf.io.FixedLenFeature([], tf.string),
+    'image/encoded': tf.io.FixedLenFeature([], tf.string),
+    'image/format': tf.io.FixedLenFeature([], tf.string),
+    'image/object/bbox/xmin': tf.io.VarLenFeature(tf.float32),
+    'image/object/bbox/ymin': tf.io.VarLenFeature(tf.float32),
+    'image/object/bbox/xmax': tf.io.VarLenFeature(tf.float32),
+    'image/object/bbox/ymax': tf.io.VarLenFeature(tf.float32),
+    'image/object/class/text': tf.io.VarLenFeature(tf.string),
+    'image/object/class/label': tf.io.VarLenFeature(tf.int64),
+    'image/object/difficult': tf.io.VarLenFeature(tf.int64),
+    'image/object/truncated': tf.io.VarLenFeature(tf.int64),
+    'image/object/view': tf.io.VarLenFeature(tf.string),
+}
+
+
+def parse_tfrecord(tfrecord, class_table):
+    x = tf.io.parse_single_example(tfrecord, IMAGE_FEATURE_MAP)
+    x_train = tf.image.decode_jpeg(x['image/encoded'], channels=3)
     x_train = tf.image.resize(x_train, (416, 416))
 
-    labels = tf.cast(tf.sparse.to_dense(example_proto['image/object/class/label'], default_value=0), tf.float32)
-
-    y_train = tf.stack([tf.sparse.to_dense(example_proto['image/object/bbox/xmin']),
-                        tf.sparse.to_dense(example_proto['image/object/bbox/ymin']),
-                        tf.sparse.to_dense(example_proto['image/object/bbox/xmax']),
-                        tf.sparse.to_dense(example_proto['image/object/bbox/ymax']),
-                        labels]
-                        , axis=1)
+    class_text = tf.sparse.to_dense(
+        x['image/object/class/text'], default_value='')
+    labels = tf.cast(class_table.lookup(class_text), tf.float32)
+    y_train = tf.stack([tf.sparse.to_dense(x['image/object/bbox/xmin']),
+                        tf.sparse.to_dense(x['image/object/bbox/ymin']),
+                        tf.sparse.to_dense(x['image/object/bbox/xmax']),
+                        tf.sparse.to_dense(x['image/object/bbox/ymax']),
+                        labels], axis=1)
 
     paddings = [[0, 100 - tf.shape(y_train)[0]], [0, 0]]
     y_train = tf.pad(y_train, paddings)
@@ -111,15 +117,11 @@ def parse_tfrecord(example_proto):
     return x_train, y_train
 
 
-def createDataset(tfrecord_path):
-    raw_dataset = tf.data.TFRecordDataset(tfrecord_path)
-    parsed_dataset = raw_dataset.map(_parse_image_function)
+def load_tfrecord_dataset(file_pattern):
+    LINE_NUMBER = -1  # TODO: use tf.lookup.TextFileIndex.LINE_NUMBER
+    class_table = tf.lookup.StaticHashTable(tf.lookup.TextFileInitializer(
+        "C:\\Users\\Moyez\\Desktop\\Code\\Python\\M-NET\\coco.names", tf.string, 0, tf.int64, LINE_NUMBER, delimiter="\n"), -1)
 
-    return parsed_dataset.map(lambda x: parse_tfrecord(x))
-
-
-
-
-
-
-
+    files = tf.data.Dataset.list_files(file_pattern)
+    dataset = files.flat_map(tf.data.TFRecordDataset)
+    return dataset.map(lambda x: parse_tfrecord(x, class_table))

@@ -20,8 +20,9 @@ def main():
     
 #     Get the training set
     train_dataset = dataset.load_tfrecord_dataset(train_path)
+    # train_dataset = train_dataset.take(2000)
     train_dataset = train_dataset.shuffle(buffer_size=1024)
-    train_dataset = train_dataset.batch(1)
+    train_dataset = train_dataset.batch(8)
     
     train_dataset = train_dataset.map(lambda x, y: (
         dataset.transform_images(x, 416),
@@ -85,7 +86,7 @@ def main():
             ModelCheckpoint('checkpoints/yolov3_train_{epoch}.tf', verbose=1, save_weights_only=True),
             TensorBoard(log_dir='logs')]
 
-        history = model.fit(train_dataset, epochs=1, callbacks=callbacks)
+        history = model.fit(train_dataset, epochs=2, callbacks=callbacks)
 
 
 main()

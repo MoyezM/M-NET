@@ -240,17 +240,20 @@ def Loss(anchors, classes=80, ignore_thresh=0.5):
         obj_loss = obj_mask * obj_loss + (1 - obj_mask) * ignore_mask * obj_loss
         # TODO: use binary_crossentropy instead
 
-        if (tf.keras.backend.min_value(true_class_idx) < 0):
-            class_loss = 0
-        else:   
-            class_loss = obj_mask *  sparse_categorical_crossentropy(true_class_idx, pred_class)
-            class_loss = tf.reduce_sum(class_loss, axis=(1, 2, 3))
+        # if (np.min(true_class_idx) == -1):
+        #     class_loss = obj_mask * mean_squared_error(true_class_idx, pred_class)
+        # else:   
+        #     class_loss = obj_mask * sparse_categorical_crossentropy(true_class_idx, pred_class)
 
+        class_loss = obj_mask * sparse_categorical_crossentropy(true_class_idx, pred_class)
 
+        
         # 6. sum over (batch, gridx, gridy, anchors) => (batch, 1)
         xy_loss = tf.reduce_sum(xy_loss, axis=(1, 2, 3))
         wh_loss = tf.reduce_sum(wh_loss, axis=(1, 2, 3))
         obj_loss = tf.reduce_sum(obj_loss, axis=(1, 2, 3))
+        class_loss = tf.reduce_sum(class_loss, axis=(1, 2, 3))
+
 
         return xy_loss + wh_loss + obj_loss + class_loss
     return loss

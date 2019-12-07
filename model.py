@@ -173,7 +173,7 @@ def nms(outputs, anchors, masks, classes):
     return boxes, scores, classes, valid_detections
     
 
-def MNET_complete(size=None, channels=3, anchors=mnet_anchors, masks=mnet_anchor_masks, classes=80, training=False):
+def MNET_complete(size=None, channels=3, anchors=mnet_anchors, masks=mnet_anchor_masks, classes=81, training=False):
     x = inputs = Input([size, size, channels])
     
     x_1, x_2, x = MNET(name="MNET")(x)
@@ -199,7 +199,7 @@ def MNET_complete(size=None, channels=3, anchors=mnet_anchors, masks=mnet_anchor
     return Model(inputs, outputs, name='mnet')
 
 # Completely stolen from Yolo paper and TF2 implementation
-def Loss(anchors, classes=80, ignore_thresh=0.5):
+def Loss(anchors, classes=81, ignore_thresh=0.5):
     def loss(y_true, y_pred):
         # 1. transform all pred outputs
         # y_pred: (batch_size, grid, grid, anchors, (x, y, w, h, obj, ...cls))

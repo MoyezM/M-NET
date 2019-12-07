@@ -22,11 +22,11 @@ def main():
     train_dataset = dataset.load_tfrecord_dataset(train_path)
     # train_dataset = train_dataset.take(2000)
     train_dataset = train_dataset.shuffle(buffer_size=1024)
-    train_dataset = train_dataset.batch(8)
+    train_dataset = train_dataset.batch(1)
     
     train_dataset = train_dataset.map(lambda x, y: (
         dataset.transform_images(x, 416),
-        dataset.transform_targets(y, anchors, anchor_masks, 80)))
+        dataset.transform_targets(y, anchors, anchor_masks, 81)))
     
     train_dataset = train_dataset.prefetch(
         buffer_size=tf.data.experimental.AUTOTUNE)
@@ -37,10 +37,10 @@ def main():
     # val_dataset = val_dataset.batch(1)
     # val_dataset = val_dataset.map(lambda x, y: (
     #     dataset.transform_images(x, 416),
-    #     dataset.transform_targets(y, anchors, anchor_masks, 80)))
+    #     dataset.transform_targets(y, anchors, anchor_masks, 81)))
 
     optimizer = tf.keras.optimizers.Adam(lr = 1e-3)
-    loss = [mnet.Loss(anchors[mask], classes = 80) for mask in anchor_masks]
+    loss = [mnet.Loss(anchors[mask], classes = 81) for mask in anchor_masks]
     
     avg_loss = tf.keras.metrics.Mean('loss', dtype=tf.float32)
     avg_val_loss = tf.keras.metrics.Mean('val_loss', dtype=tf.float32)
@@ -86,7 +86,7 @@ def main():
             ModelCheckpoint('checkpoints/yolov3_train_{epoch}.tf', verbose=1, save_weights_only=True),
             TensorBoard(log_dir='logs')]
 
-        history = model.fit(train_dataset, epochs=2, callbacks=callbacks)
+        history = model.fit(train_dataset, epochs=1, callbacks=callbacks)
 
 
 main()

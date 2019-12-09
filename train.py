@@ -1,4 +1,5 @@
 import tensorflow as tf
+import tensorflow.keras as K
 import numpy as np
 import cv2
 from tensorflow.keras.callbacks import (
@@ -10,19 +11,24 @@ from tensorflow.keras.callbacks import (
 import model as mnet
 import dataset as dataset
 
-train_path = "D:\\Coco\\coco_train.record-00000-of-00001"
+train_path = "/home/moyez/Documents/Code/Python/M-NET/coco_train.record"
 # val_path = "D:\\Coco\\coco_val.tfrecord"
 
 def main():
+    config = tf.compat.v1.ConfigProto()
+    config.gpu_options.allow_growth = True
+    session = tf.compat.v1.Session(config=config)
+
     model = mnet.MNET_complete(416, training=True)
     anchors = mnet.mnet_anchors
     anchor_masks = mnet.mnet_anchor_masks
     
 #     Get the training set
     train_dataset = dataset.load_tfrecord_dataset(train_path)
+    # train_dataset = train_dataset.take(60000)
     # train_dataset = train_dataset.take(2000)
     train_dataset = train_dataset.shuffle(buffer_size=1024)
-    train_dataset = train_dataset.batch(8)
+    train_dataset = train_dataset.batch(4)
     
     train_dataset = train_dataset.map(lambda x, y: (
         dataset.transform_images(x, 416),
@@ -80,13 +86,16 @@ def main():
 
     else:
 
+
+
+
         model.compile(optimizer=optimizer, loss=loss, run_eagerly=(False))
         callbacks = [ReduceLROnPlateau(verbose=1),
             EarlyStopping(patience=3, verbose=1),
             ModelCheckpoint('checkpoints/yolov3_train_{epoch}.tf', verbose=1, save_weights_only=True),
             TensorBoard(log_dir='logs')]
 
-        history = model.fit(train_dataset, epochs=2, callbacks=callbacks)
+        history = model.fit(train_dataset, epochs=1, callbacks=callbacks)
 
 
 main()

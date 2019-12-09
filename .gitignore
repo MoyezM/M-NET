@@ -3,3 +3,8 @@
 cocoapi
 __pycache__
 checkpoints
+env
+test-env
+logs
+test
+coco_train.record

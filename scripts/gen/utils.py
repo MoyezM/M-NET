@@ -80,7 +80,7 @@ category_map = {
     78: 'microwave',
     79: 'oven',
     80: 'toaster',
-    81: 'sink',
+    80: 'sink',
     82: 'refrigerator',
     84: 'book',
     85: 'clock',

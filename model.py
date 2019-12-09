@@ -245,7 +245,7 @@ def Loss(anchors, classes=80, ignore_thresh=0.5):
         # else:   
         #     class_loss = obj_mask * sparse_categorical_crossentropy(true_class_idx, pred_class)
 
-        class_loss = obj_mask * sparse_categorical_crossentropy(true_class_idx, pred_class)
+        class_loss = obj_mask * classLoss(true_class_idx, pred_class)
 
         
         # 6. sum over (batch, gridx, gridy, anchors) => (batch, 1)
@@ -259,5 +259,17 @@ def Loss(anchors, classes=80, ignore_thresh=0.5):
     return loss
 
 
+# Inputs a grid_size x grid_size x 3 x classes  tensor
+@tf.function
+def classLoss(true_class_idx, pred_class):
+    true_class_idx = tf.cast(true_class_idx, dtype='int32')
+    one_hot_true = tf.one_hot(true_class_idx, depth=80, axis=-1, dtype='float32')
+    one_hot_true = tf.reshape(one_hot_true, tf.shape(pred_class))
 
+    test = tf.reduce_sum(tf.cast(tf.math.is_nan(one_hot_true), dtype='float32'))
+    # if tf.reduce_sum(tf.cast(tf.math.is_nan(one_hot_true), dtype='float32')):
+    #     print('Test')
+    #     return categorical_crossentropy(pred_class, pred_class)
+    #     pass
 
+    return categorical_crossentropy(one_hot_true, pred_class)

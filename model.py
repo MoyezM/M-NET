@@ -81,7 +81,7 @@ def MNET(name=None):
     x = ConvResBlock(x, 64, 1)
     x = ConvResBlock(x, 128, 2)
     x = x_1 = ConvResBlock(x, 256, 4)
-    x = x_2 = ConvResBlock(x, 512, 4)
+    x = x_2 = ConvResBlock(x, 512, 6)
     x = ConvResBlock(x, 1024, 2)
     
     return tf.keras.Model(inputs, (x_1, x_2, x), name=name)

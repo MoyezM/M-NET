@@ -14,7 +14,9 @@ import model as mnet
 import dataset as dataset
 
 train_path = "/home/moyez/Documents/Code/Python/M-NET/coco_train.record"
+train_size = 118287
 val_path = "/home/moyez/Documents/Code/Python/M-NET/coco_val.record"
+val_size = 5000
 
 
 def main():
@@ -22,11 +24,15 @@ def main():
     config.gpu_options.allow_growth = True
     session = tf.compat.v1.Session(config=config)
 
+    # K.set_epsilon(1e-4)
+    # K.backend.set_floatx('float16')
+
+
     model = mnet.MNET_complete(416, training=True)
     anchors = mnet.mnet_anchors
     anchor_masks = mnet.mnet_anchor_masks
 
-    batch_size = 8
+    batch_size = 4
     
 #     Get the training set
     train_dataset = dataset.load_tfrecord_dataset(train_path)
@@ -46,9 +52,6 @@ def main():
     val_dataset = val_dataset.map(lambda x, y: (
         dataset.transform_images(x, 416),
         dataset.transform_targets(y, anchors, anchor_masks, 80)))
-
-    val_dataset = val_dataset.prefetch(
-        buffer_size=tf.data.experimental.AUTOTUNE)
 
     optimizer = tf.keras.optimizers.Adam(lr = 1e-3)
     loss = [mnet.Loss(anchors[mask], classes = 80) for mask in anchor_masks]
@@ -100,7 +103,7 @@ def main():
             TensorBoard(log_dir='logs')]
 
         # history = model.fit(train_dataset, validation_data=val_dataset, epochs=2, callbacks=callbacks)
-        history = model.fit(train_dataset, validation_data=val_dataset, epochs=6, callbacks=callbacks)
+        history = model.fit(train_dataset, validation_data=val_dataset, epochs=25, callbacks=callbacks)
 
 
 

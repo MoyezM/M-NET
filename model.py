@@ -240,11 +240,6 @@ def Loss(anchors, classes=80, ignore_thresh=0.5):
         obj_loss = obj_mask * obj_loss + (1 - obj_mask) * ignore_mask * obj_loss
         # TODO: use binary_crossentropy instead
 
-        # if (np.min(true_class_idx) == -1):
-        #     class_loss = obj_mask * mean_squared_error(true_class_idx, pred_class)
-        # else:   
-        #     class_loss = obj_mask * sparse_categorical_crossentropy(true_class_idx, pred_class)
-
         class_loss = obj_mask * classLoss(true_class_idx, pred_class)
 
         
@@ -254,8 +249,9 @@ def Loss(anchors, classes=80, ignore_thresh=0.5):
         obj_loss = tf.reduce_sum(obj_loss, axis=(1, 2, 3))
         class_loss = tf.reduce_sum(class_loss, axis=(1, 2, 3))
 
-
         return xy_loss + wh_loss + obj_loss + class_loss
+
+        # return xy_loss + wh_loss + obj_loss
     return loss
 
 
@@ -266,10 +262,56 @@ def classLoss(true_class_idx, pred_class):
     one_hot_true = tf.one_hot(true_class_idx, depth=80, axis=-1, dtype='float32')
     one_hot_true = tf.reshape(one_hot_true, tf.shape(pred_class))
 
-    test = tf.reduce_sum(tf.cast(tf.math.is_nan(one_hot_true), dtype='float32'))
-    # if tf.reduce_sum(tf.cast(tf.math.is_nan(one_hot_true), dtype='float32')):
-    #     print('Test')
-    #     return categorical_crossentropy(pred_class, pred_class)
-    #     pass
-
     return categorical_crossentropy(one_hot_true, pred_class)
+
+# Not working without eager
+def map(anchors, classes=80, ignore_thresh=0.5):
+    @tf.function
+    def mAP(y_true, y_pred):
+        pred_box, pred_obj, pred_class, pred_xywh = boxes(y_pred, anchors, classes)
+        
+        pred_xy = pred_xywh[..., 0:2]
+        pred_wh = pred_xywh[..., 2:4]
+
+        true_box, true_obj, true_class_idx = tf.split(y_true, (4, 1, 1), axis=-1)
+        true_xy = (true_box[..., 0:2] + true_box[..., 2:4]) / 2
+        true_wh = true_box[..., 2:4] - true_box[..., 0:2]
+
+        true_class_idx = tf.cast(true_class_idx, dtype='int32')
+        true_class = tf.one_hot(true_class_idx, depth=80, axis=-1, dtype='float32')
+        true_class = tf.reshape(true_class, tf.shape(pred_class))
+
+        classF1 = fbeta_score(true_class, pred_class)
+        boxF1 = fbeta_score(true_box, pred_box)
+        xyF1 = fbeta_score(true_xy, pred_xy)
+        whF1 = fbeta_score(true_wh, pred_wh)
+        objF1 = fbeta_score(true_obj, pred_obj)
+
+        return   classF1 + boxF1 + xyF1 + whF1 + objF1       
+    return mAP
+
+def fbeta_score(y_true, y_pred, beta=1):
+    if beta < 0:
+        raise ValueError('The lowest choosable beta is zero (only precision).')
+        
+    if K.sum(K.round(K.clip(y_true, 0, 1))) == 0:
+        return 0.0
+
+    p = precision(y_true, y_pred)
+    r = recall(y_true, y_pred)
+    bb = beta ** 2
+    fbeta_score = (1 + bb) * (p * r) / (bb * p + r + K.epsilon())
+    return fbeta_score
+
+def precision(y_true, y_pred):
+    true_positives = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
+    predicted_positives = K.sum(K.round(K.clip(y_pred, 0, 1)))
+    precision = true_positives / (predicted_positives + K.epsilon())
+    return precision
+
+
+def recall(y_true, y_pred):
+    true_positives = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
+    possible_positives = K.sum(K.round(K.clip(y_true, 0, 1)))
+    recall = true_positives / (possible_positives + K.epsilon())
+    return recall

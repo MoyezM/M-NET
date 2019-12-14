@@ -32,10 +32,13 @@ def main():
     anchors = mnet.mnet_anchors
     anchor_masks = mnet.mnet_anchor_masks
 
-    batch_size = 4
+    batch_size = 8
     
 #     Get the training set
     train_dataset = dataset.load_tfrecord_dataset(train_path)
+
+    # train_dataset = train_dataset.take(200)
+
     train_dataset = train_dataset.shuffle(buffer_size=1024)
     train_dataset = train_dataset.batch(batch_size)
     
@@ -48,6 +51,9 @@ def main():
 
     
     val_dataset = dataset.load_tfrecord_dataset(val_path)
+
+    # val_dataset = val_dataset.take(50)
+
     val_dataset = val_dataset.batch(batch_size)
     val_dataset = val_dataset.map(lambda x, y: (
         dataset.transform_images(x, 416),
@@ -97,13 +103,13 @@ def main():
 
         model.compile(optimizer=optimizer, loss=loss, run_eagerly=(False), metrics=[*mAP])
         callbacks = [
-            # ReduceLROnPlateau(verbose=1),
-            # EarlyStopping(patience=3, verbose=1),
+            ReduceLROnPlateau(verbose=1),
+            EarlyStopping(patience=3, verbose=1),
             ModelCheckpoint('checkpoints/yolov3_train_{epoch}.tf', verbose=1, save_weights_only=True),
             TensorBoard(log_dir='logs')]
 
         # history = model.fit(train_dataset, validation_data=val_dataset, epochs=2, callbacks=callbacks)
-        history = model.fit(train_dataset, validation_data=val_dataset, epochs=25, callbacks=callbacks)
+        history = model.fit(train_dataset, validation_data=val_dataset, epochs=20, callbacks=callbacks, validation_steps=int(val_size/batch_size))
 
 
 

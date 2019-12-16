@@ -2,14 +2,12 @@ import tensorflow as tf
 import numpy as np
 import tensorflow.keras.backend as K
 from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Conv2D, ZeroPadding2D, Add, Input, LeakyReLU, \
-                                    UpSampling2D, Concatenate, Lambda
+from tensorflow.keras.layers import Conv2D, ZeroPadding2D, Add, Input, LeakyReLU, UpSampling2D, Concatenate, Lambda
 from tensorflow.keras.regularizers import l2
 from tensorflow.keras.losses import binary_crossentropy, sparse_categorical_crossentropy, mean_squared_error, categorical_crossentropy
 from batch_norm import BatchNormalization
 
-mnet_anchors = np.array([(10, 13), (16, 30), (33, 23), (30, 61), (62, 45),
-                         (59, 119), (116, 90), (156, 198), (373, 326)], np.float32) / 416
+mnet_anchors = np.array([(10, 13), (16, 30), (33, 23), (30, 61), (62, 45), (59, 119), (116, 90), (156, 198), (373, 326)], np.float32) / 416
 
 mnet_anchor_masks = np.array([[6, 7, 8], [3, 4, 5], [0, 1, 2]])
 
@@ -18,26 +16,20 @@ iou_threshold = 0.5
 score_threshold = 0.5
 
 def broadcast_iou(box_1, box_2):
-    # box_1: (..., (x1, y1, x2, y2))
-    # box_2: (N, (x1, y1, x2, y2))
-
     # broadcast boxes
     box_1 = tf.expand_dims(box_1, -2)
     box_2 = tf.expand_dims(box_2, 0)
-    # new_shape: (..., N, (x1, y1, x2, y2))
+
     new_shape = tf.broadcast_dynamic_shape(tf.shape(box_1), tf.shape(box_2))
+
     box_1 = tf.broadcast_to(box_1, new_shape)
     box_2 = tf.broadcast_to(box_2, new_shape)
 
-    int_w = tf.maximum(tf.minimum(box_1[..., 2], box_2[..., 2]) -
-                       tf.maximum(box_1[..., 0], box_2[..., 0]), 0)
-    int_h = tf.maximum(tf.minimum(box_1[..., 3], box_2[..., 3]) -
-                       tf.maximum(box_1[..., 1], box_2[..., 1]), 0)
+    int_w = tf.maximum(tf.minimum(box_1[..., 2], box_2[..., 2]) - tf.maximum(box_1[..., 0], box_2[..., 0]), 0)
+    int_h = tf.maximum(tf.minimum(box_1[..., 3], box_2[..., 3]) - tf.maximum(box_1[..., 1], box_2[..., 1]), 0)
     int_area = int_w * int_h
-    box_1_area = (box_1[..., 2] - box_1[..., 0]) * \
-        (box_1[..., 3] - box_1[..., 1])
-    box_2_area = (box_2[..., 2] - box_2[..., 0]) * \
-        (box_2[..., 3] - box_2[..., 1])
+    box_1_area = (box_1[..., 2] - box_1[..., 0]) * (box_1[..., 3] - box_1[..., 1])
+    box_2_area = (box_2[..., 2] - box_2[..., 0]) * (box_2[..., 3] - box_2[..., 1])
     return int_area / (box_1_area + box_2_area - int_area)
 
 
@@ -81,7 +73,7 @@ def MNET(name=None):
     x = ConvResBlock(x, 64, 1)
     x = ConvResBlock(x, 128, 2)
     x = x_1 = ConvResBlock(x, 256, 4)
-    x = x_2 = ConvResBlock(x, 512, 6)
+    x = x_2 = ConvResBlock(x, 512, 4)
     x = ConvResBlock(x, 1024, 2)
     
     return tf.keras.Model(inputs, (x_1, x_2, x), name=name)
@@ -193,8 +185,7 @@ def MNET_complete(size=None, channels=3, anchors=mnet_anchors, masks=mnet_anchor
     boxes_1 = Lambda(lambda x: boxes(x, anchors[masks[1]], classes), name='mnet_boxes_1')(output_1)
     boxes_2 = Lambda(lambda x: boxes(x, anchors[masks[1]], classes), name='mnet_boxes_2')(output_2)
 
-    outputs = Lambda(lambda x: nms(x, anchors, masks, classes),
-                     name='mnet_nms')((boxes_0[:3], boxes_1[:3], boxes_2[:3]))
+    outputs = Lambda(lambda x: nms(x, anchors, masks, classes), name='mnet_nms')((boxes_0[:3], boxes_1[:3], boxes_2[:3]))
 
     return Model(inputs, outputs, name='mnet')
 
@@ -264,7 +255,7 @@ def classLoss(true_class_idx, pred_class):
 
     return categorical_crossentropy(one_hot_true, pred_class)
 
-# Not working without eager
+# NOT REALLY mAP
 def map(anchors, classes=80, ignore_thresh=0.5):
     @tf.function
     def mAP(y_true, y_pred):

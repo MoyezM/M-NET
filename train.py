@@ -12,6 +12,8 @@ from tensorflow.keras.callbacks import (
 )
 import model as mnet
 import dataset as dataset
+from datetime import datetime
+
 
 train_path = "/home/moyez/Documents/Code/Python/M-NET/coco_train.record"
 train_size = 118287
@@ -68,48 +70,20 @@ def main():
 
     eager = False
 
-    if eager:
 
-        for epoch in range(1, 5 + 1):
-            for batch, (images, labels) in enumerate(train_dataset):
-                with tf.GradientTape() as tape:
-                    outputs = model(images, training=True)
-                    regularization_loss = tf.reduce_sum(model.losses)
-                    pred_loss = []
-                    for output, label, loss_fn in zip(outputs, labels, loss):
-                        pred_loss.append(loss_fn(label, output))
-                    total_loss = tf.reduce_sum(pred_loss) + regularization_loss
-
-                grads = tape.gradient(total_loss, model.trainable_variables)
-                optimizer.apply_gradients(
-                    zip(grads, model.trainable_variables))
-
-                print("{}_train_{}, {}, {}".format(
-                    epoch, batch, total_loss.numpy(),
-                    list(map(lambda x: np.sum(x.numpy()), pred_loss))))
-                avg_loss.update_state(total_loss)
-                print(avg_loss.result().numpy())
+    logdir = "logs/" + datetime.now().strftime("%Y%m%d-%H%M%S")
+    tensorboard_callback = K.callbacks.TensorBoard(log_dir=logdir)
 
 
-            print("{}, train: {}".format(
-                epoch,
-                avg_loss.result().numpy()))
+    model.compile(optimizer=optimizer, loss=loss, run_eagerly=(False), metrics=[*mAP])
+    callbacks = [
+        ReduceLROnPlateau(verbose=1),
+        EarlyStopping(patience=2, verbose=1),
+        ModelCheckpoint('checkpoints/mnet_train_{epoch}.tf', verbose=1, save_weights_only=True),
+        tensorboard_callback]
 
-            avg_loss.reset_states()
-            model.save_weights(
-                'checkpoints/yolov3_train_{}.tf'.format(epoch))
-
-    else:
-
-        model.compile(optimizer=optimizer, loss=loss, run_eagerly=(False), metrics=[*mAP])
-        callbacks = [
-            ReduceLROnPlateau(verbose=1),
-            EarlyStopping(patience=3, verbose=1),
-            ModelCheckpoint('checkpoints/yolov3_train_{epoch}.tf', verbose=1, save_weights_only=True),
-            TensorBoard(log_dir='logs')]
-
-        # history = model.fit(train_dataset, validation_data=val_dataset, epochs=2, callbacks=callbacks)
-        history = model.fit(train_dataset, validation_data=val_dataset, epochs=20, callbacks=callbacks, validation_steps=int(val_size/batch_size))
+    # history = model.fit(train_dataset, validation_data=val_dataset, epochs=2, callbacks=callbacks)
+    history = model.fit(train_dataset, validation_data=val_dataset, epochs=20, callbacks=callbacks, validation_steps=int(val_size/batch_size))
 
 
 

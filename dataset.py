@@ -119,12 +119,6 @@ def parse_tfrecord(tfrecord, class_table):
 
     return x_train, y_train
 
-def filterNegative(y):
-    if tf.math.reduce_min(y) < 0:
-        return False
-    else:
-        return True
-
 
 def load_tfrecord_dataset(file_pattern):
     LINE_NUMBER = -1  # TODO: use tf.lookup.TextFileIndex.LINE_NUMBER
@@ -134,7 +128,5 @@ def load_tfrecord_dataset(file_pattern):
     files = tf.data.Dataset.list_files(file_pattern)
     dataset = files.flat_map(tf.data.TFRecordDataset)
     dataset = dataset.map(lambda x: parse_tfrecord(x, class_table))
-
-    # dataset = dataset.filter(lambda x, y: filterNegative(y))
 
     return dataset

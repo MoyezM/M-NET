@@ -11,9 +11,9 @@ mnet_anchors = np.array([(10, 13), (16, 30), (33, 23), (30, 61), (62, 45), (59, 
 
 mnet_anchor_masks = np.array([[6, 7, 8], [3, 4, 5], [0, 1, 2]])
 
-iou_threshold = 0.5
+iou_threshold = 0.3
 
-score_threshold = 0.5
+score_threshold = 0.3
 
 def broadcast_iou(box_1, box_2):
     # broadcast boxes
@@ -72,8 +72,8 @@ def MNET(name=None):
     
     x = ConvResBlock(x, 64, 1)
     x = ConvResBlock(x, 128, 2)
-    x = x_1 = ConvResBlock(x, 256, 4)
-    x = x_2 = ConvResBlock(x, 512, 4)
+    x = x_1 = ConvResBlock(x, 256, 2)
+    x = x_2 = ConvResBlock(x, 512, 2)
     x = ConvResBlock(x, 1024, 2)
     
     return tf.keras.Model(inputs, (x_1, x_2, x), name=name)

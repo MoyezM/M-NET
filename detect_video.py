@@ -9,7 +9,7 @@ from utils import draw_outputs
 
 
 flags.DEFINE_string('classes', 'coco.names', 'path to classes file')
-flags.DEFINE_string('weights', './checkpoints/mnet_train_8_12-25.tf',
+flags.DEFINE_string('weights', './checkpoints/mnet_train_18_01-05.tf',
                     'path to weights file')
 flags.DEFINE_integer('size', 416, 'resize images to')
 flags.DEFINE_string('video', '0', 'path to video file or number for webcam)')

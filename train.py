@@ -85,8 +85,8 @@ def main():
     tensorboard_callback = K.callbacks.TensorBoard(log_dir=logdir)
 
 
-    model.compile(optimizer=optimizer, loss=loss, run_eagerly=(False))
-    # model.compile(optimizer=optimizer, loss=loss, run_eagerly=(False), metrics=[*mAP])
+    # model.compile(optimizer=optimizer, loss=loss, run_eagerly=(False))
+    model.compile(optimizer=optimizer, loss=loss, run_eagerly=(False), metrics=[*mAP])
 
     callbacks = [
         # ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=3, verbose=1),

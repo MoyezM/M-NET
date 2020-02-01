@@ -72,8 +72,8 @@ def MNET(name=None):
     
     x = ConvResBlock(x, 64, 1)
     x = ConvResBlock(x, 128, 2)
-    x = x_1 = ConvResBlock(x, 256, 2)
-    x = x_2 = ConvResBlock(x, 512, 2)
+    x = x_1 = ConvResBlock(x, 256, 4)
+    x = x_2 = ConvResBlock(x, 512, 4)
     x = ConvResBlock(x, 1024, 2)
     
     return tf.keras.Model(inputs, (x_1, x_2, x), name=name)
@@ -283,7 +283,7 @@ def map(anchors, classes=80, ignore_thresh=0.5):
 
 def fbeta_score(y_true, y_pred, beta=1):
     if beta < 0:
-        raise ValueError('The lowest choosable beta is zero (only precision).')
+        raise ValueError('The lowest choseable beta is zero (only precision).')
         
     if K.sum(K.round(K.clip(y_true, 0, 1))) == 0:
         return 0.0
